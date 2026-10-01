@@ -7,6 +7,8 @@ import {
   buildVerboseToolTrailLine,
   edgePreview,
   estimateRows,
+  formatToolCall,
+  hasHostHeader,
   isToolTrailResultLine,
   lastCotTrailIndex,
   parseToolTrailResultLine,
@@ -31,6 +33,33 @@ describe('buildToolTrailLine', () => {
     expect(line).toBe('Read File("x") (0.9s) ✓')
     expect(parseToolTrailResultLine(line)).toEqual({ call: 'Read File("x") (0.9s)', detail: '', mark: '✓' })
     expect(splitToolDuration('Read File("x") (0.9s)')).toEqual({ label: 'Read File("x")', duration: ' (0.9s)' })
+  })
+})
+
+describe('formatToolCall ssh mac', () => {
+  it('strips the ssh/zsh wrapper and puts commands on their own lines under an On mac: header', () => {
+    const line = formatToolCall('terminal', `ssh mac 'zsh -lc "cd ~/projects/ai-zoo && git status -sb"'`)
+
+    expect(line).toBe('On mac:\n● Terminal("cd ~/projects/ai-zoo\n  git status -sb")')
+    expect(hasHostHeader(line)).toBe(true)
+  })
+
+  it('keeps the duration split working on a multi-line label', () => {
+    const line = formatToolCall('terminal', `ssh mac 'zsh -lc "a && b"'`)
+
+    expect(splitToolDuration(`${line} (0.6s)`)).toEqual({ label: line, duration: ' (0.6s)' })
+  })
+
+  it('caps very long command chains', () => {
+    const chain = Array.from({ length: 9 }, (_, i) => `cmd${i}`).join(' && ')
+    const line = formatToolCall('terminal', `ssh mac 'zsh -lc "${chain}"'`)
+
+    expect(line).toContain('… +3 more')
+  })
+
+  it('leaves non-mac terminal calls alone', () => {
+    expect(formatToolCall('terminal', 'ls -la')).toBe('Terminal("ls -la")')
+    expect(hasHostHeader('Terminal("ls -la")')).toBe(false)
   })
 })
 

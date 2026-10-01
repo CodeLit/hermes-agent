@@ -174,6 +174,13 @@ export const toolTrailLabel = (name: string) =>
     .map(p => p[0]!.toUpperCase() + p.slice(1))
     .join(' ') || name
 
+const ON_MAC_MAX_LINES = 6
+
+/** Header line of a remote-host tool call; its second line already carries the ● glyph. */
+export const ON_MAC_HEADER = 'On mac:'
+
+export const hasHostHeader = (label: string) => label.startsWith(`${ON_MAC_HEADER}\n`)
+
 export const formatToolCall = (name: string, context = '') => {
   const label = toolTrailLabel(name)
   const raw = context.trim()
@@ -182,8 +189,16 @@ export const formatToolCall = (name: string, context = '') => {
     let clean = raw.replace(/^ssh\s+(?:-t\s+)?mac\s+['"]?/, '')
     clean = clean.replace(/^(?:zsh\s+-lc\s+['"])/, '')
     clean = clean.replace(/['"]+$/, '').replace(/\\"/g, '"').trim()
-    const preview = compactPreview(clean, 70)
-    return `On mac: ${label}("${preview}")`
+    const parts = clean
+      .split(/\n|\s&&\s/)
+      .map(part => compactPreview(part, 100))
+      .filter(Boolean)
+
+    const shown = parts.slice(0, ON_MAC_MAX_LINES)
+    const hidden = parts.length - shown.length
+    const body = shown.join('\n  ') + (hidden > 0 ? `\n  … +${hidden} more` : '')
+
+    return `${ON_MAC_HEADER}\n● ${label}("${body}")`
   }
 
   const preview = compactPreview(context, 64)
@@ -284,7 +299,7 @@ export const parseToolTrailResultLine = (line: string) => {
 }
 
 export const splitToolDuration = (call: string) => {
-  const match = call.match(/^(.*?)( \(\d+(?:\.\d)?s\))$/)
+  const match = call.match(/^([\s\S]*?)( \(\d+(?:\.\d)?s\))$/)
 
   return match ? { label: match[1]!, duration: match[2]! } : { label: call, duration: '' }
 }
