@@ -176,8 +176,17 @@ export const toolTrailLabel = (name: string) =>
 
 export const formatToolCall = (name: string, context = '') => {
   const label = toolTrailLabel(name)
-  const preview = compactPreview(context, 64)
+  const raw = context.trim()
 
+  if (name.toLowerCase().includes('terminal') && raw.startsWith('ssh mac')) {
+    let clean = raw.replace(/^ssh\s+(?:-t\s+)?mac\s+['"]?/, '')
+    clean = clean.replace(/^(?:zsh\s+-lc\s+['"])/, '')
+    clean = clean.replace(/['"]+$/, '').replace(/\\"/g, '"').trim()
+    const preview = compactPreview(clean, 70)
+    return `On mac: ${label}("${preview}")`
+  }
+
+  const preview = compactPreview(context, 64)
   return preview ? `${label}("${preview}")` : label
 }
 
