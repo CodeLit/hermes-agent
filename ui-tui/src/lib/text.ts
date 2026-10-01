@@ -188,7 +188,11 @@ export const formatToolCall = (name: string, context = '') => {
   if (name.toLowerCase().includes('terminal') && raw.startsWith('ssh mac')) {
     let clean = raw.replace(/^ssh\s+(?:-t\s+)?mac\s+['"]?/, '')
     clean = clean.replace(/^(?:zsh\s+-lc\s+['"])/, '')
-    clean = clean.replace(/['"]+$/, '').replace(/\\"/g, '"').trim()
+    clean = clean
+      .replace(/['"]+$/, '')
+      .replace(/\\"/g, '"')
+      .trim()
+
     const parts = clean
       .split(/\n|\s&&\s/)
       .map(part => compactPreview(part, 100))
@@ -202,6 +206,7 @@ export const formatToolCall = (name: string, context = '') => {
   }
 
   const preview = compactPreview(context, 64)
+
   return preview ? `${label}("${preview}")` : label
 }
 
