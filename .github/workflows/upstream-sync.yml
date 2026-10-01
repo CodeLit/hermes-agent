@@ -1,0 +1,83 @@
+name: Upstream Sync (rebase + PR)
+
+# Weekly: rebase our patches onto NousResearch/hermes-agent main in a SIDE branch,
+# run the ui-tui checks, and open a PR. Never pushes to main, so a broken upstream
+# cannot reach the deployed images until the PR is merged by hand.
+# Replaces repo-sync/github-sync, which force-syncs main and would drop our patches.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: https://github.com/NousResearch/hermes-agent.git
+  BRANCH: sync/upstream
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch upstream main --no-tags
+          echo "behind=$(git rev-list --count HEAD..upstream/main)" >> "$GITHUB_ENV"
+          echo "ahead=$(git rev-list --count upstream/main..HEAD)" >> "$GITHUB_ENV"
+
+      - name: Nothing to do
+        if: env.behind == '0'
+        run: echo "Already contains upstream/main - nothing to sync."
+
+      - name: Rebase onto upstream
+        if: env.behind != '0'
+        run: |
+          git config user.name  "upstream-sync[bot]"
+          git config user.email "upstream-sync@users.noreply.github.com"
+          git checkout -B "$BRANCH" main
+          if ! git rebase upstream/main; then
+            echo "::error::Rebase conflicts - resolve by hand. Conflicting files:"
+            git diff --name-only --diff-filter=U
+            git rebase --abort
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        if: env.behind != '0'
+        with:
+          node-version: 22
+
+      - name: ui-tui checks
+        if: env.behind != '0'
+        working-directory: ui-tui
+        run: |
+          npm install --no-audit --no-fund
+          npx vitest run src/__tests__/text.test.ts
+          npx tsc --noEmit -p tsconfig.json
+
+      - name: Push branch and open PR
+        if: env.behind != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push --force-with-lease origin "$BRANCH"
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "Sync with upstream ($behind commits)" \
+              --body "Automated rebase of our patches onto NousResearch/hermes-agent main. ui-tui tests and tsc passed. Merge, then redeploy: task home:deploy -- hermes-standby (verify), then hermes."
+          else
+            echo "PR already open, branch updated."
+          fi
