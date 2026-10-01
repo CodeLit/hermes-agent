@@ -1,9 +1,9 @@
-name: Upstream Sync (rebase + PR)
+name: Upstream Sync (merge + PR)
 
-# Weekly: rebase our patches onto NousResearch/hermes-agent main in a SIDE branch,
+# Weekly: merge NousResearch/hermes-agent main into a SIDE branch,
 # run the ui-tui checks, and open a PR. Never pushes to main, so a broken upstream
 # cannot reach the deployed images until the PR is merged by hand.
-# Replaces repo-sync/github-sync, which force-syncs main and would drop our patches.
+# A merge (not a rebase) keeps main's history intact, so the PR is mergeable without force-push.
 
 on:
   schedule:
@@ -42,16 +42,16 @@ jobs:
         if: env.behind == '0'
         run: echo "Already contains upstream/main - nothing to sync."
 
-      - name: Rebase onto upstream
+      - name: Merge upstream
         if: env.behind != '0'
         run: |
           git config user.name  "upstream-sync[bot]"
           git config user.email "upstream-sync@users.noreply.github.com"
           git checkout -B "$BRANCH" main
-          if ! git rebase upstream/main; then
-            echo "::error::Rebase conflicts - resolve by hand. Conflicting files:"
+          if ! git merge --no-edit -m "Merge upstream/main into fork" upstream/main; then
+            echo "::error::Merge conflicts - resolve by hand. Conflicting files:"
             git diff --name-only --diff-filter=U
-            git rebase --abort
+            git merge --abort
             exit 1
           fi
 
@@ -77,7 +77,7 @@ jobs:
           if [ "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
             gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
               --title "Sync with upstream ($behind commits)" \
-              --body "Automated rebase of our patches onto NousResearch/hermes-agent main. ui-tui tests and tsc passed. Merge, then redeploy: task home:deploy -- hermes-standby (verify), then hermes."
+              --body "Automated merge of NousResearch/hermes-agent main into the fork. ui-tui tests and tsc passed. Merge, then redeploy: task home:deploy -- hermes-standby (verify), then hermes."
           else
             echo "PR already open, branch updated."
           fi
