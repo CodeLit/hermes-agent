@@ -74,8 +74,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git push --force-with-lease origin "$BRANCH"
-          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
-            gh pr create --base main --head "$BRANCH" \
+          if [ "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
               --title "Sync with upstream ($behind commits)" \
               --body "Automated rebase of our patches onto NousResearch/hermes-agent main. ui-tui tests and tsc passed. Merge, then redeploy: task home:deploy -- hermes-standby (verify), then hermes."
           else
